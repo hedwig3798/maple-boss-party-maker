@@ -1,10 +1,10 @@
-import { AppData, Boss, BossGroup, Character, Player } from './types';
+import { AppData, Boss, BossGroup, Character, DEFAULT_WEAK_RATIO, Player } from './types';
 import { DEFAULT_BOSSES } from './defaultBosses';
 
 const KEY = 'maple-boss-party-maker:v1';
 
 /** 처음 방문·전체 초기화 시 상태: 플레이어·캐릭터는 비우고 보스는 기본 목록 */
-export const DEFAULT_DATA: AppData = { players: [], characters: [], bosses: DEFAULT_BOSSES, groups: [] };
+export const DEFAULT_DATA: AppData = { players: [], characters: [], bosses: DEFAULT_BOSSES, groups: [], weakRatio: DEFAULT_WEAK_RATIO };
 
 export function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -69,7 +69,9 @@ export function normalize(input: unknown): AppData {
       .map(str)
       .filter((id) => bossIds.has(id) && !taken.has(id) && (taken.add(id), true)),
   }));
-  return { players, characters, bosses, groups };
+  // 이 항목이 없던 예전 데이터는 기본값
+  const weakRatio = num(o.weakRatio, DEFAULT_WEAK_RATIO);
+  return { players, characters, bosses, groups, weakRatio: weakRatio >= 0 ? weakRatio : DEFAULT_WEAK_RATIO };
 }
 
 export function downloadJson(data: AppData) {

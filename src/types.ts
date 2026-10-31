@@ -37,6 +37,9 @@ export interface AppData {
   characters: Character[];
   bosses: Boss[];
   groups: BossGroup[];
+  /** 배율이 기준값(배율 기준치 ÷ 최대 인원) × 이 배수보다 낮으면 '배율 너무 낮음'으로 제외 */
+  weakRatio: number;
 }
 
 export const MAX_PARTY_SIZE = 6;
+export const DEFAULT_WEAK_RATIO = 0.1;

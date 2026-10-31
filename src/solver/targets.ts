@@ -10,6 +10,8 @@ export interface Target {
   minSize: number;
   maxSize: number;
   cooldownThreshold: number;
+  /** 배율이 기준값(기준치 ÷ 최대 인원) × 이 배수보다 낮으면 제외 */
+  weakRatio: number;
   /** 설정 오류가 있으면 계산하지 않는다 */
   error?: string;
 }
@@ -65,6 +67,7 @@ export function buildTargets(data: AppData): Target[] {
       minSize,
       maxSize,
       cooldownThreshold: Math.min(...bosses.map((b) => b.cooldownThreshold)),
+      weakRatio: data.weakRatio,
       error,
     });
   }
@@ -79,6 +82,7 @@ export function buildTargets(data: AppData): Target[] {
       minSize: b.minSize,
       maxSize: b.maxSize,
       cooldownThreshold: b.cooldownThreshold,
+      weakRatio: data.weakRatio,
       error: validateBoss(b),
     });
   }

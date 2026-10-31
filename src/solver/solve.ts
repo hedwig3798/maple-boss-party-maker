@@ -12,9 +12,6 @@ export type Reason =
   | 'EXCLUDED'
   | 'OTHER_DIFFICULTY';
 
-/** 기준값(배율 기준치 ÷ 최대 인원)에 이 배수를 곱한 값보다 배율이 낮으면 제외 */
-export const WEAK_RATIO = 0.3;
-
 export const REASON_LABEL: Record<Reason, string> = {
   NO_RATE: '배율 미입력',
   SOLO: '솔로 가능',
@@ -96,7 +93,7 @@ export const hasRate = (c: Character, bossId: string) => {
 /** 기준값에서 과도하게 벗어난 캐릭터의 제외 사유. 그룹이면 보스 중 하나라도 벗어나면 제외 */
 export function outlierReason(target: Target, c: Character): Reason | undefined {
   if (target.bosses.some((b) => c.rates[b.id] >= b.threshold - EPS)) return 'SOLO';
-  if (target.bosses.some((b) => c.rates[b.id] < (b.threshold / target.maxSize) * WEAK_RATIO - EPS)) return 'TOO_WEAK';
+  if (target.bosses.some((b) => c.rates[b.id] < (b.threshold / target.maxSize) * target.weakRatio - EPS)) return 'TOO_WEAK';
   return undefined;
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { AppData, Boss, Character } from '../types';
+import { AppData, Boss, Character, DEFAULT_WEAK_RATIO } from '../types';
 import { bossKind, groupByFamily } from '../bossFamily';
 import { buildTargets } from './targets';
 import { orderTargets, solveAll } from './solveAll';
@@ -47,6 +47,7 @@ describe('한 캐릭터는 같은 보스에서 한 난이도만', () => {
     // 목록 순서를 일부러 노말 먼저
     bosses: [boss('n', '노말 X'), boss('h', '하드 X')],
     groups: [],
+    weakRatio: DEFAULT_WEAK_RATIO,
   };
 
   test('높은 난이도부터 계산하고, 배정된 캐릭터는 낮은 난이도에서 빠진다', () => {
@@ -92,7 +93,7 @@ describe('한 캐릭터는 같은 보스에서 한 난이도만', () => {
 
 describe('그룹과 계산 순서', () => {
   test('같은 보스의 두 난이도를 한 그룹에 넣으면 오류', () => {
-    const t = buildTargets({ players: [], characters: [], bosses: [boss('h', '하드 X'), boss('n', '노말 X')], groups: [{ id: 'g', name: 'G', bossIds: ['h', 'n'] }] });
+    const t = buildTargets({ players: [], characters: [], bosses: [boss('h', '하드 X'), boss('n', '노말 X')], groups: [{ id: 'g', name: 'G', bossIds: ['h', 'n'] }], weakRatio: DEFAULT_WEAK_RATIO });
     expect(t[0].error).toContain('같은 보스의 다른 난이도');
   });
 
@@ -102,7 +103,7 @@ describe('그룹과 계산 순서', () => {
       { id: 'a', name: 'A', bossIds: ['hk', 'ns'] },
       { id: 'b', name: 'B', bossIds: ['nk', 'hs'] },
     ];
-    const names = orderTargets(buildTargets({ players: [], characters: [], bosses, groups })).map((t) => t.name);
+    const names = orderTargets(buildTargets({ players: [], characters: [], bosses, groups, weakRatio: DEFAULT_WEAK_RATIO })).map((t) => t.name);
     expect(names).toEqual(['A', 'B']);
   });
 });

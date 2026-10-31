@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { SAMPLE_DATA } from './sample';
-import { AppData, Character } from '../types';
+import { AppData, Character, DEFAULT_WEAK_RATIO } from '../types';
 import { buildTargets, Target, validateBoss } from './targets';
 import { DEFAULT_BOSSES } from '../defaultBosses';
-import { normalize } from '../storage';
+import { DEFAULT_DATA, normalize } from '../storage';
 import { Reason, solveTarget } from './solve';
 import { bruteForce } from './bruteforce';
 
@@ -66,7 +66,7 @@ function expectSameObjective(r: ReturnType<typeof solveTarget>, bf: ReturnType<t
 const tgt = (over: Partial<Target> = {}): Target => ({
   key: 't', name: 't', isGroup: false,
   bosses: [{ id: 'b', name: 'b', threshold: 100 }],
-  minSize: 2, maxSize: 6, cooldownThreshold: 10, ...over,
+  minSize: 2, maxSize: 6, cooldownThreshold: 10, weakRatio: DEFAULT_WEAK_RATIO, ...over,
 });
 const ch = (id: string, playerId: string, cooldown: number, rate?: number): Character => ({
   id, name: id, playerId, cooldown, rates: rate === undefined ? {} : { b: rate },
@@ -76,8 +76,11 @@ describe('미배정 사유', () => {
   const cases: [string, Target, Character[], Record<string, Reason>][] = [
     ['배율 미입력', tgt({ minSize: 1 }), [ch('a', 'p1', 0, 60), ch('b', 'p3', 0, 40), ch('x', 'p2', 0)], { x: 'NO_RATE' }],
     ['솔로 가능', tgt({ minSize: 1 }), [ch('a', 'p1', 0, 100), ch('b', 'p2', 0, 60), ch('c', 'p3', 0, 40)], { a: 'SOLO' }],
-    // 기준값 100 ÷ 6 = 16.7%, × 0.3 = 5% 미만이면 제외
-    ['배율 너무 낮음', tgt(), [ch('a', 'p1', 0, 60), ch('b', 'p2', 0, 40), ch('w', 'p3', 0, 4.9)], { w: 'TOO_WEAK' }],
+    // 기준값 100 ÷ 6 = 16.7%, 기본 × 0.1 = 1.67% 미만이면 제외
+    ['배율 너무 낮음', tgt(), [ch('a', 'p1', 0, 60), ch('b', 'p2', 0, 40), ch('w', 'p3', 0, 1.6)], { w: 'TOO_WEAK' }],
+    // 배수를 0.3으로 바꾸면 5% 미만이 제외
+    ['배율 너무 낮음 배수 변경', tgt({ weakRatio: 0.3 }), [ch('a', 'p1', 0, 60), ch('b', 'p2', 0, 40), ch('w', 'p3', 0, 4.9)], { w: 'TOO_WEAK' }],
+    ['배수 0이면 제외 안 함', tgt({ weakRatio: 0, maxSize: 2 }), [ch('a', 'p1', 0, 60), ch('b', 'p2', 0, 40), ch('w', 'p3', 0, 0)], { w: 'NO_COMBINATION' }], // TOO_WEAK가 아님
     ['참여 인원 부족', tgt({ minSize: 3 }), [ch('a', 'p1', 0, 90), ch('b', 'p2', 0, 90)], { a: 'NOT_ENOUGH_MEMBERS', b: 'NOT_ENOUGH_MEMBERS' }],
     ['같은 플레이어 충돌', tgt(), [ch('a', 'p1', 0, 90), ch('b', 'p1', 0, 90)], { a: 'SAME_PLAYER', b: 'SAME_PLAYER' }],
     ['쿨감 범위 초과', tgt({ cooldownThreshold: 3 }), [ch('a', 'p1', 0, 90), ch('b', 'p2', 1, 90), ch('z', 'p3', 20, 90)], { z: 'COOLDOWN' }],
@@ -92,7 +95,7 @@ describe('미배정 사유', () => {
 
 describe('보스 그룹', () => {
   const base: AppData = {
-    players: [], characters: [], groups: [{ id: 'g', name: 'G', bossIds: ['x', 'y'] }],
+    players: [], characters: [], weakRatio: DEFAULT_WEAK_RATIO, groups: [{ id: 'g', name: 'G', bossIds: ['x', 'y'] }],
     bosses: [
       { id: 'x', name: 'X', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10 , enabled: true },
       { id: 'y', name: 'Y', minSize: 3, maxSize: 4, rateThreshold: 200, cooldownThreshold: 5 , enabled: true },
@@ -113,7 +116,7 @@ describe('보스 그룹', () => {
   });
   test('기본 보스는 모두 꺼져 있어 계산 대상이 없다', () => {
     expect(DEFAULT_BOSSES.every((b) => !b.enabled)).toBe(true);
-    expect(buildTargets({ players: [], characters: [], groups: [], bosses: DEFAULT_BOSSES })).toEqual([]);
+    expect(buildTargets({ ...DEFAULT_DATA, bosses: DEFAULT_BOSSES })).toEqual([]);
   });
   test('인원 범위가 비면 오류', () => {
     const ts = buildTargets({ ...base, groups: [{ id: 'g', name: 'G', bossIds: ['x', 'z'] }] });
@@ -239,5 +242,11 @@ describe('저장 데이터 불러오기', () => {
   test('enabled가 없던 예전 데이터의 보스는 켜진 것으로 본다', () => {
     const d = normalize({ bosses: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B', enabled: false }] });
     expect(d.bosses.map((b) => b.enabled)).toEqual([true, false]);
+  });
+
+  test('weakRatio가 없거나 음수면 기본값 0.1, 있으면 그대로', () => {
+    expect(normalize({ bosses: [] }).weakRatio).toBe(0.1);
+    expect(normalize({ bosses: [], weakRatio: -1 }).weakRatio).toBe(0.1);
+    expect(normalize({ bosses: [], weakRatio: 0.25 }).weakRatio).toBe(0.25);
   });
 });

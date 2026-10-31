@@ -111,6 +111,8 @@ export default function App() {
             stale={stale}
             timeLimitSec={timeLimitSec}
             setTimeLimitSec={setTimeLimitSec}
+            weakRatio={data.weakRatio}
+            setWeakRatio={(weakRatio) => update((d) => ({ ...d, weakRatio }))}
             onRun={startRun}
             onCancel={cancelRun}
           />

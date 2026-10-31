@@ -1,4 +1,4 @@
-import { AppData } from '../types';
+import { AppData, DEFAULT_WEAK_RATIO } from '../types';
 
 /** 테스트용 예시: 플레이어 4명, 캐릭터 10개, 보스 4개(그중 2개는 그룹) */
 export const SAMPLE_DATA: AppData = {
@@ -15,6 +15,7 @@ export const SAMPLE_DATA: AppData = {
     { id: 'bm', name: '검은 마법사', minSize: 4, maxSize: 6, rateThreshold: 100, cooldownThreshold: 20, enabled: true },
   ],
   groups: [{ id: 'g1', name: '루시드+윌', bossIds: ['lucid', 'will'] }],
+  weakRatio: DEFAULT_WEAK_RATIO,
   characters: [
     { id: 'c1', name: '철수본캐', playerId: 'p1', cooldown: 0, rates: { lucid: 60, will: 55, jhilla: 45, bm: 30 } },
     { id: 'c2', name: '철수부캐', playerId: 'p1', cooldown: 5, rates: { lucid: 30, will: 25, jhilla: 20 } },

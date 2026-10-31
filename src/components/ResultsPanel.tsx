@@ -1,5 +1,5 @@
 import { AppData } from '../types';
-import { Reason, REASON_LABEL, TargetResult, WEAK_RATIO } from '../solver/solve';
+import { Reason, REASON_LABEL, TargetResult } from '../solver/solve';
 import { NumberInput } from './NumberInput';
 
 export interface RunState {
@@ -16,6 +16,8 @@ interface Props {
   stale: boolean;
   timeLimitSec: number;
   setTimeLimitSec: (v: number) => void;
+  weakRatio: number;
+  setWeakRatio: (v: number) => void;
   onRun: () => void;
   onCancel: () => void;
 }
@@ -24,7 +26,7 @@ const REASON_ORDER: Reason[] = ['OTHER_DIFFICULTY', 'SOLO', 'TOO_WEAK', 'EXCLUDE
 const pct = (x: number) => `${Math.round(x * 10) / 10}%`;
 const fmt = (x: number, d = 3) => x.toFixed(d);
 
-export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, onRun, onCancel }: Props) {
+export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRatio, setWeakRatio, onRun, onCancel }: Props) {
   const snap = run.snapshot;
   const charName = new Map(snap?.characters.map((c) => [c.id, c]) ?? []);
   const playerName = new Map(snap?.players.map((p) => [p.id, p.name]) ?? []);
@@ -43,6 +45,18 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, onRun,
               보스당 시간 제한
               <NumberInput className="num" value={timeLimitSec} min={0.5} onChange={(v) => setTimeLimitSec(v && v > 0 ? v : 3)} />
               초
+            </label>
+            <label className="row" title="배율이 기준값(배율 기준치 ÷ 최대 인원) × 이 배수보다 낮은 캐릭터는 제외합니다. 0이면 제외하지 않습니다.">
+              배율 너무 낮음 기준
+              <NumberInput
+                className="num"
+                value={weakRatio}
+                min={0}
+                step={0.05}
+                // 빈칸·음수는 무시하고 이전 값을 유지
+                onChange={(v) => v !== undefined && v >= 0 && setWeakRatio(v)}
+              />
+              배
             </label>
           </div>
           <div className="row">
@@ -64,7 +78,7 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, onRun,
         </div>
         {stale && !run.running && <div className="warn">입력이 바뀌었습니다. 다시 계산하세요.</div>}
         <p className="muted small">
-          혼자 기준치를 채우는(솔로 가능) 캐릭터와 배율이 기준값(기준치 ÷ 최대 인원)의 {WEAK_RATIO}배 미만인 캐릭터는 빼고, ① 작은 파티부터 최대한 많이 ② 파티 안 배율 편차(최고 − 최저, 기준치 대비)가 가장 큰 파티의 편차 최소 ③ 편차 합 최소 순으로 짭니다. 시간 제한 안에 최적을 증명하지 못하면 그때까지 찾은 가장 좋은 결과를 보여줍니다.
+          혼자 기준치를 채우는(솔로 가능) 캐릭터와 배율이 기준값(기준치 ÷ 최대 인원)의 {weakRatio}배 미만인 캐릭터는 빼고, ① 작은 파티부터 최대한 많이 ② 파티 안 배율 편차(최고 − 최저, 기준치 대비)가 가장 큰 파티의 편차 최소 ③ 편차 합 최소 순으로 짭니다. 시간 제한 안에 최적을 증명하지 못하면 그때까지 찾은 가장 좋은 결과를 보여줍니다.
         </p>
       </section>
 
