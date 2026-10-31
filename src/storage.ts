@@ -1,8 +1,10 @@
 import { AppData, Boss, BossGroup, Character, Player } from './types';
+import { DEFAULT_BOSSES } from './defaultBosses';
 
 const KEY = 'maple-boss-party-maker:v1';
 
-export const EMPTY_DATA: AppData = { players: [], characters: [], bosses: [], groups: [] };
+/** 처음 방문·전체 초기화 시 상태: 플레이어·캐릭터는 비우고 보스는 기본 목록 */
+export const DEFAULT_DATA: AppData = { players: [], characters: [], bosses: DEFAULT_BOSSES, groups: [] };
 
 export function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -15,9 +17,9 @@ export function loadData(): AppData {
     const raw = localStorage.getItem(KEY);
     if (raw) return normalize(JSON.parse(raw));
   } catch {
-    // 저장소 접근 불가 또는 손상된 데이터 → 빈 데이터로 시작
+    // 저장소 접근 불가 또는 손상된 데이터 → 기본 데이터로 시작
   }
-  return EMPTY_DATA;
+  return DEFAULT_DATA;
 }
 
 export function saveData(data: AppData) {
@@ -47,6 +49,8 @@ export function normalize(input: unknown): AppData {
     maxSize: num(b.maxSize, 6),
     rateThreshold: num(b.rateThreshold, 100),
     cooldownThreshold: num(b.cooldownThreshold, 0),
+    // 이 항목이 없던 예전 데이터는 켜진 것으로 본다
+    enabled: b.enabled !== false,
   }));
   const bossIds = new Set(bosses.map((b) => b.id));
   const characters: Character[] = arr(o.characters).map((c) => {

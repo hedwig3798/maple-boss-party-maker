@@ -22,6 +22,8 @@ export interface Boss {
   rateThreshold: number;
   /** 쿨감 기준치(초) */
   cooldownThreshold: number;
+  /** 꺼진 보스는 캐릭터 배율 칸·그룹·계산에서 빠진다(입력한 배율은 유지) */
+  enabled: boolean;
 }
 
 export interface BossGroup {

@@ -7,6 +7,7 @@ type Update = (fn: (d: AppData) => AppData) => void;
 
 export function PlayersPanel({ data, update }: { data: AppData; update: Update }) {
   const [newName, setNewName] = useState('');
+  const bosses = data.bosses.filter((b) => b.enabled);
 
   const addPlayer = () => {
     const name = newName.trim();
@@ -90,7 +91,7 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
                       <th>캐릭터</th>
                       <th>소속</th>
                       <th title="쿨타임 감소(초)">쿨감(초)</th>
-                      {data.bosses.map((b) => (
+                      {bosses.map((b) => (
                         <th key={b.id} title={`${b.name} 배율(%) — 비우면 미참여`}>
                           {b.name || '(이름 없음)'} %
                         </th>
@@ -116,7 +117,7 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
                         <td>
                           <NumberInput className="num" value={c.cooldown} min={0} onChange={(v) => setChar(c.id, { cooldown: v ?? 0 })} />
                         </td>
-                        {data.bosses.map((b) => (
+                        {bosses.map((b) => (
                           <td key={b.id}>
                             <NumberInput className="num" value={c.rates[b.id]} min={0} placeholder="—" onChange={(v) => setRate(c, b.id, v)} />
                           </td>
@@ -135,8 +136,8 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
           </section>
         );
       })}
-      {data.players.length > 0 && data.bosses.length === 0 && (
-        <p className="muted">보스를 추가하면 캐릭터별 배율 칸이 생깁니다. 배율 칸을 비우면 그 보스에는 참여하지 않습니다.</p>
+      {data.players.length > 0 && bosses.length === 0 && (
+        <p className="muted">'보스 · 그룹' 탭에서 가는 보스를 체크하면 캐릭터별 배율 칸이 생깁니다. 배율 칸을 비우면 그 보스에는 참여하지 않습니다.</p>
       )}
     </div>
   );

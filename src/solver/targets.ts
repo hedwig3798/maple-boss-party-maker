@@ -24,7 +24,7 @@ export function validateBoss(b: Boss): string | undefined {
 }
 
 export function buildTargets(data: AppData): Target[] {
-  const bossById = new Map(data.bosses.map((b) => [b.id, b]));
+  const bossById = new Map(data.bosses.filter((b) => b.enabled).map((b) => [b.id, b]));
   const grouped = new Set<string>();
   const targets: Target[] = [];
 
@@ -58,7 +58,7 @@ export function buildTargets(data: AppData): Target[] {
   }
 
   for (const b of data.bosses) {
-    if (grouped.has(b.id)) continue;
+    if (!b.enabled || grouped.has(b.id)) continue;
     targets.push({
       key: `boss:${b.id}`,
       name: b.name || '(이름 없는 보스)',

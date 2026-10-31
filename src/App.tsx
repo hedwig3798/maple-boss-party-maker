@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppData } from './types';
-import { downloadJson, EMPTY_DATA, loadData, normalize, saveData } from './storage';
-import { SAMPLE_DATA } from './sample';
+import { DEFAULT_DATA, downloadJson, loadData, normalize, saveData } from './storage';
 import { PlayersPanel } from './components/PlayersPanel';
 import { BossesPanel } from './components/BossesPanel';
 import { ResultsPanel, RunState } from './components/ResultsPanel';
@@ -76,10 +75,9 @@ export default function App() {
       <header>
         <h1>메이플 파티 보스 메이커</h1>
         <div className="row wrap">
-          <button onClick={() => replaceData(SAMPLE_DATA, '예시 데이터')}>예시 불러오기</button>
           <button onClick={() => downloadJson(data)}>JSON 내보내기</button>
           <button onClick={() => fileRef.current?.click()}>JSON 불러오기</button>
-          <button className="danger" onClick={() => replaceData(EMPTY_DATA, '빈 데이터')}>
+          <button className="danger" onClick={() => replaceData(DEFAULT_DATA, '기본 보스 목록')}>
             전체 초기화
           </button>
           <input
@@ -100,7 +98,7 @@ export default function App() {
           <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
             {label}
             {key === 'players' && <small> {data.players.length}명 / {data.characters.length}캐릭</small>}
-            {key === 'bosses' && <small> {data.bosses.length}보스</small>}
+            {key === 'bosses' && <small> {data.bosses.filter((b) => b.enabled).length}/{data.bosses.length}보스</small>}
           </button>
         ))}
       </nav>

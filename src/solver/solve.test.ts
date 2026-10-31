@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { SAMPLE_DATA } from '../sample';
+import { SAMPLE_DATA } from './sample';
 import { AppData, Character } from '../types';
-import { buildTargets, Target } from './targets';
+import { buildTargets, Target, validateBoss } from './targets';
+import { DEFAULT_BOSSES } from '../defaultBosses';
+import { normalize } from '../storage';
 import { Reason, solveTarget } from './solve';
 import { bruteForce } from './bruteforce';
 
@@ -82,15 +84,26 @@ describe('보스 그룹', () => {
   const base: AppData = {
     players: [], characters: [], groups: [{ id: 'g', name: 'G', bossIds: ['x', 'y'] }],
     bosses: [
-      { id: 'x', name: 'X', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10 },
-      { id: 'y', name: 'Y', minSize: 3, maxSize: 4, rateThreshold: 200, cooldownThreshold: 5 },
-      { id: 'z', name: 'Z', minSize: 1, maxSize: 1, rateThreshold: 100, cooldownThreshold: 0 },
+      { id: 'x', name: 'X', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10 , enabled: true },
+      { id: 'y', name: 'Y', minSize: 3, maxSize: 4, rateThreshold: 200, cooldownThreshold: 5 , enabled: true },
+      { id: 'z', name: 'Z', minSize: 1, maxSize: 1, rateThreshold: 100, cooldownThreshold: 0 , enabled: true },
     ],
   };
   test('그룹은 가장 엄격한 인원·쿨감을 쓰고, 그룹 보스는 단독 계산하지 않는다', () => {
     const ts = buildTargets(base);
     expect(ts.map((t) => t.name)).toEqual(['G', 'Z']);
     expect(ts[0]).toMatchObject({ minSize: 3, maxSize: 4, cooldownThreshold: 5 });
+  });
+  test('꺼진 보스는 단독·그룹 계산에서 빠진다', () => {
+    const off = (id: string) => base.bosses.map((b) => (b.id === id ? { ...b, enabled: false } : b));
+    expect(buildTargets({ ...base, bosses: off('z') }).map((t) => t.name)).toEqual(['G']);
+    const g = buildTargets({ ...base, bosses: off('y') });
+    expect(g.map((t) => t.name)).toEqual(['G', 'Z']);
+    expect(g[0].bosses.map((b) => b.id)).toEqual(['x']);
+  });
+  test('기본 보스는 모두 꺼져 있어 계산 대상이 없다', () => {
+    expect(DEFAULT_BOSSES.every((b) => !b.enabled)).toBe(true);
+    expect(buildTargets({ players: [], characters: [], groups: [], bosses: DEFAULT_BOSSES })).toEqual([]);
   });
   test('인원 범위가 비면 오류', () => {
     const ts = buildTargets({ ...base, groups: [{ id: 'g', name: 'G', bossIds: ['x', 'z'] }] });
@@ -170,4 +183,25 @@ test('최대 규모(캐릭터 30, 플레이어 10) 시간 제한 준수', () => 
     expect(r.elapsedMs).toBeLessThan(4500);
     console.log(`seed ${seed}: 파티 ${r.parties.length}, 후보 ${r.candidateCount}, 수확정 ${r.countOptimal}, 최적 ${r.optimal}, σ ${r.stdev.toFixed(4)}, ${r.elapsedMs.toFixed(0)}ms`);
   }
+});
+
+describe('기본 보스 목록', () => {
+  test('56개, 이름·id 중복 없음, 모두 설정 오류 없음', () => {
+    expect(DEFAULT_BOSSES).toHaveLength(56);
+    expect(new Set(DEFAULT_BOSSES.map((b) => b.name)).size).toBe(56);
+    expect(new Set(DEFAULT_BOSSES.map((b) => b.id)).size).toBe(56);
+    expect(DEFAULT_BOSSES.filter((b) => validateBoss(b))).toEqual([]);
+  });
+
+  test('어려운 순: 처음은 익스트림 발드릭스, 끝은 카오스 자쿰', () => {
+    expect(DEFAULT_BOSSES[0].name).toBe('익스트림 발드릭스');
+    expect(DEFAULT_BOSSES[55].name).toBe('카오스 자쿰');
+  });
+});
+
+describe('저장 데이터 불러오기', () => {
+  test('enabled가 없던 예전 데이터의 보스는 켜진 것으로 본다', () => {
+    const d = normalize({ bosses: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B', enabled: false }] });
+    expect(d.bosses.map((b) => b.enabled)).toEqual([true, false]);
+  });
 });

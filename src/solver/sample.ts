@@ -1,6 +1,6 @@
-import { AppData } from './types';
+import { AppData } from '../types';
 
-/** 테스트·시연용 예시: 플레이어 4명, 캐릭터 10개, 보스 4개(그중 2개는 그룹) */
+/** 테스트용 예시: 플레이어 4명, 캐릭터 10개, 보스 4개(그중 2개는 그룹) */
 export const SAMPLE_DATA: AppData = {
   players: [
     { id: 'p1', name: '철수' },
@@ -9,10 +9,10 @@ export const SAMPLE_DATA: AppData = {
     { id: 'p4', name: '서윤' },
   ],
   bosses: [
-    { id: 'lucid', name: '루시드', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10 },
-    { id: 'will', name: '윌', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10 },
-    { id: 'jhilla', name: '진 힐라', minSize: 3, maxSize: 6, rateThreshold: 100, cooldownThreshold: 5 },
-    { id: 'bm', name: '검은 마법사', minSize: 4, maxSize: 6, rateThreshold: 100, cooldownThreshold: 20 },
+    { id: 'lucid', name: '루시드', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10, enabled: true },
+    { id: 'will', name: '윌', minSize: 2, maxSize: 6, rateThreshold: 100, cooldownThreshold: 10, enabled: true },
+    { id: 'jhilla', name: '진 힐라', minSize: 3, maxSize: 6, rateThreshold: 100, cooldownThreshold: 5, enabled: true },
+    { id: 'bm', name: '검은 마법사', minSize: 4, maxSize: 6, rateThreshold: 100, cooldownThreshold: 20, enabled: true },
   ],
   groups: [{ id: 'g1', name: '루시드+윌', bossIds: ['lucid', 'will'] }],
   characters: [

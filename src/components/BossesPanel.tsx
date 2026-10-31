@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AppData, Boss, MAX_PARTY_SIZE } from '../types';
 import { newId } from '../storage';
 import { buildTargets, validateBoss } from '../solver/targets';
@@ -9,13 +10,18 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
   const groupOf = new Map<string, string>();
   data.groups.forEach((g) => g.bossIds.forEach((b) => groupOf.set(b, g.id)));
   const groupTargets = new Map(buildTargets(data).filter((t) => t.isGroup).map((t) => [t.key, t]));
+  const enabledBosses = data.bosses.filter((b) => b.enabled);
+  const offCount = data.bosses.length - enabledBosses.length;
+  // 켜진 보스가 하나도 없으면(처음 방문) 꺼진 보스까지 펼쳐서 시작
+  const [showOff, setShowOff] = useState(enabledBosses.length === 0);
+  const visibleBosses = showOff ? data.bosses : enabledBosses;
 
   const setBoss = (id: string, patch: Partial<Boss>) =>
     update((d) => ({ ...d, bosses: d.bosses.map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
   const addBoss = () =>
     update((d) => ({
       ...d,
-      bosses: [...d.bosses, { id: newId(), name: '', minSize: 1, maxSize: MAX_PARTY_SIZE, rateThreshold: 100, cooldownThreshold: 10 }],
+      bosses: [...d.bosses, { id: newId(), name: '', minSize: 1, maxSize: MAX_PARTY_SIZE, rateThreshold: 100, cooldownThreshold: 10, enabled: true }],
     }));
   const removeBoss = (id: string) => {
     const b = data.bosses.find((x) => x.id === id);
@@ -49,18 +55,29 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
     <div className="stack">
       <section className="card">
         <div className="row between">
-          <h2>보스</h2>
-          <button className="primary" onClick={addBoss}>
-            보스 추가
-          </button>
+          <h2>
+            보스 <small className="muted">사용 {enabledBosses.length} / {data.bosses.length}</small>
+          </h2>
+          <div className="row">
+            {offCount > 0 && (
+              <button onClick={() => setShowOff((v) => !v)}>{showOff ? '꺼진 보스 숨기기' : `꺼진 보스 보기 (${offCount})`}</button>
+            )}
+            <button className="primary" onClick={addBoss}>
+              보스 추가
+            </button>
+          </div>
         </div>
+        <p className="muted">가는 보스만 체크하세요. 꺼진 보스는 캐릭터 배율 칸·그룹·계산에서 빠지며, 입력해 둔 배율은 남아 있습니다.</p>
         {data.bosses.length === 0 ? (
           <p className="muted">보스가 없습니다.</p>
+        ) : visibleBosses.length === 0 ? (
+          <p className="muted">켜진 보스가 없습니다. '꺼진 보스 보기'를 눌러 가는 보스를 체크하세요.</p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th>사용</th>
                   <th>보스</th>
                   <th>최소 인원</th>
                   <th>최대 인원</th>
@@ -71,13 +88,16 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
                 </tr>
               </thead>
               <tbody>
-                {data.bosses.map((b) => {
+                {visibleBosses.map((b) => {
                   const err = validateBoss(b);
                   const g = data.groups.find((x) => x.id === groupOf.get(b.id));
                   return (
-                    <tr key={b.id}>
+                    <tr key={b.id} className={b.enabled ? '' : 'off'}>
                       <td>
-                        <input value={b.name} placeholder="보스 이름" onChange={(e) => setBoss(b.id, { name: e.target.value })} />
+                        <input type="checkbox" className="toggle" title="이 보스 사용" checked={b.enabled} onChange={(e) => setBoss(b.id, { enabled: e.target.checked })} />
+                      </td>
+                      <td>
+                        <input className="boss-name" value={b.name} placeholder="보스 이름" onChange={(e) => setBoss(b.id, { name: e.target.value })} />
                         {err && <div className="error">{err}</div>}
                       </td>
                       <td>
@@ -110,12 +130,12 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
       <section className="card">
         <div className="row between">
           <h2>보스 그룹</h2>
-          <button onClick={addGroup} disabled={data.bosses.length < 2}>
+          <button onClick={addGroup} disabled={enabledBosses.length < 2}>
             그룹 추가
           </button>
         </div>
         <p className="muted">
-          묶인 보스는 같은 파티로 함께 갑니다. 인원 범위·쿨감 기준치는 가장 엄격한 값을 쓰고, 배율 기준치는 보스마다 각각 만족해야 합니다.
+          켜진 보스끼리만 묶을 수 있습니다. 묶인 보스는 같은 파티로 함께 갑니다. 인원 범위·쿨감 기준치는 가장 엄격한 값을 쓰고, 배율 기준치는 보스마다 각각 만족해야 합니다.
         </p>
         {data.groups.map((g) => {
           const t = groupTargets.get(`group:${g.id}`);
@@ -137,7 +157,7 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
                 </button>
               </div>
               <div className="chips">
-                {data.bosses.map((b) => {
+                {enabledBosses.map((b) => {
                   const owner = groupOf.get(b.id);
                   const inThis = owner === g.id;
                   const disabled = !!owner && !inThis;

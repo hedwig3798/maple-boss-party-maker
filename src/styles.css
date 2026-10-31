@@ -82,6 +82,9 @@ table { border-collapse: collapse; width: 100%; }
 th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: nowrap; }
 th { font-size: 12px; color: var(--muted); font-weight: 600; }
 td input:not(.num) { width: 140px; }
+td input.boss-name { width: 210px; }
+input.toggle { width: 18px; height: 18px; margin: 0; cursor: pointer; }
+tr.off td > :not(input.toggle) { opacity: 0.45; }
 table.result td { white-space: normal; }
 
 .muted { color: var(--muted); }
