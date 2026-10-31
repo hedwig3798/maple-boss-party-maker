@@ -1,40 +1,41 @@
 import { Character } from '../types';
 import { Target } from './targets';
-import { EPS, isBetter, stdevOf } from './solve';
+import { EPS, isBetter, Objective, outlierReason } from './solve';
 
 /**
  * 검증용 완전탐색: 캐릭터마다 (미배정 | 기존 파티 | 새 파티)를 모두 시도한다.
  * 작은 입력(캐릭터 ~12개)에서만 사용.
  */
 export function bruteForce(target: Target, characters: Character[]) {
-  const eligible = characters.filter((c) => target.bosses.every((b) => typeof c.rates[b.id] === 'number'));
+  const eligible = characters.filter(
+    (c) => target.bosses.every((b) => typeof c.rates[b.id] === 'number') && !outlierReason(target, c),
+  );
   const n = eligible.length;
   const label = new Array<number>(n).fill(-1);
-  let best = { count: 0, stdev: 0, minSlack: 0, parties: [] as string[][] };
+  let best: Objective & { count: number; parties: string[][] } = { sizeCounts: [], maxSpread: 0, sumSpread: 0, count: 0, parties: [] };
 
   const evaluate = (partyCount: number) => {
     const parties: Character[][] = Array.from({ length: partyCount }, () => []);
     label.forEach((l, i) => l >= 0 && parties[l].push(eligible[i]));
-    const slacks: number[] = [];
+    const sizeCounts = new Array<number>(target.maxSize + 1).fill(0);
+    let maxSpread = 0;
+    let sumSpread = 0;
     for (const p of parties) {
       if (p.length < target.minSize || p.length > target.maxSize) return;
       if (new Set(p.map((c) => c.playerId)).size !== p.length) return;
       const cds = p.map((c) => c.cooldown);
       if (Math.max(...cds) - Math.min(...cds) > target.cooldownThreshold + EPS) return;
-      let slack = Infinity;
+      let spread = 0;
       for (const b of target.bosses) {
-        const sum = p.reduce((a, c) => a + c.rates[b.id], 0);
-        if (sum < b.threshold - EPS) return;
-        slack = Math.min(slack, sum / b.threshold);
+        const rs = p.map((c) => c.rates[b.id]);
+        if (rs.reduce((a, r) => a + r, 0) < b.threshold - EPS) return;
+        spread = Math.max(spread, (Math.max(...rs) - Math.min(...rs)) / b.threshold);
       }
-      slacks.push(slack);
+      sizeCounts[p.length]++;
+      maxSpread = Math.max(maxSpread, spread);
+      sumSpread += spread;
     }
-    const cand = {
-      count: partyCount,
-      stdev: stdevOf(slacks),
-      minSlack: slacks.length ? Math.min(...slacks) : 0,
-      parties: parties.map((p) => p.map((c) => c.id).sort()),
-    };
+    const cand = { sizeCounts, maxSpread, sumSpread, count: partyCount, parties: parties.map((p) => p.map((c) => c.id).sort()) };
     if (isBetter(cand, best)) best = cand;
   };
 

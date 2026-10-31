@@ -20,19 +20,20 @@ describe('예시 데이터 정답', () => {
     expect(targets.map((t) => t.name)).toEqual(['루시드+윌', '진 힐라', '검은 마법사']);
   });
 
-  test('루시드+윌: 3파티, 여유율 1.10/1.00/1.00', () => {
+  test('루시드+윌: 2인 2파티 + 3인 1파티, 편차 최대 0.35', () => {
     const r = get('루시드+윌');
     expect(r.optimal).toBe(true);
     expect(partiesOf(r)).toEqual(['c1+c8', 'c2+c4+c9', 'c5+c6']);
-    expect(r.parties.map((p) => p.slack)).toEqual([1.1, 1, 1].map((x) => expect.closeTo(x, 9)));
-    expect(r.stdev).toBeCloseTo(0.0471405, 6);
+    // 인원 → 편차 순 정렬: c1+c8, c5+c6, c2+c4+c9
+    expect(r.parties.map((p) => p.spread)).toEqual([0.15, 0.35, 0.25].map((x) => expect.closeTo(x, 9)));
+    expect(r.maxSpread).toBeCloseTo(0.35, 9);
     expect(reasonsOf(r)).toEqual({ c3: 'NO_RATE', c7: 'EXCLUDED', c10: 'NO_COMBINATION' });
   });
 
   test('진 힐라: 2파티', () => {
     const r = get('진 힐라');
     expect(partiesOf(r)).toEqual(['c1+c5+c8', 'c2+c4+c6']);
-    expect(r.stdev).toBeCloseTo(0.025, 9);
+    expect(r.maxSpread).toBeCloseTo(0.3, 9);
     expect(reasonsOf(r)).toEqual({ c3: 'NO_RATE', c10: 'NO_RATE', c9: 'EXCLUDED', c7: 'COOLDOWN' });
   });
 
@@ -49,12 +50,18 @@ describe('예시 데이터 정답', () => {
     for (const t of targets) {
       const r = solveTarget(t, SAMPLE_DATA.characters, 10000);
       const bf = bruteForce(t, SAMPLE_DATA.characters);
-      expect(r.parties.length).toBe(bf.count);
-      expect(r.stdev).toBeCloseTo(bf.stdev, 9);
-      expect(r.minSlack).toBeCloseTo(bf.minSlack, 9);
+      expectSameObjective(r, bf);
     }
   });
 });
+
+function expectSameObjective(r: ReturnType<typeof solveTarget>, bf: ReturnType<typeof bruteForce>, msg?: string) {
+  const sizes = r.parties.map((p) => p.memberIds.length);
+  const bfSizes = bf.parties.map((p) => p.length);
+  expect([...sizes].sort(), msg).toEqual([...bfSizes].sort());
+  expect(r.maxSpread, msg).toBeCloseTo(bf.maxSpread, 9);
+  expect(r.sumSpread, msg).toBeCloseTo(bf.sumSpread, 9);
+}
 
 const tgt = (over: Partial<Target> = {}): Target => ({
   key: 't', name: 't', isGroup: false,
@@ -67,7 +74,10 @@ const ch = (id: string, playerId: string, cooldown: number, rate?: number): Char
 
 describe('미배정 사유', () => {
   const cases: [string, Target, Character[], Record<string, Reason>][] = [
-    ['배율 미입력', tgt({ minSize: 1 }), [ch('a', 'p1', 0, 100), ch('x', 'p2', 0)], { x: 'NO_RATE' }],
+    ['배율 미입력', tgt({ minSize: 1 }), [ch('a', 'p1', 0, 60), ch('b', 'p3', 0, 40), ch('x', 'p2', 0)], { x: 'NO_RATE' }],
+    ['솔로 가능', tgt({ minSize: 1 }), [ch('a', 'p1', 0, 100), ch('b', 'p2', 0, 60), ch('c', 'p3', 0, 40)], { a: 'SOLO' }],
+    // 기준값 100 ÷ 6 = 16.7%, × 0.3 = 5% 미만이면 제외
+    ['배율 너무 낮음', tgt(), [ch('a', 'p1', 0, 60), ch('b', 'p2', 0, 40), ch('w', 'p3', 0, 4.9)], { w: 'TOO_WEAK' }],
     ['참여 인원 부족', tgt({ minSize: 3 }), [ch('a', 'p1', 0, 90), ch('b', 'p2', 0, 90)], { a: 'NOT_ENOUGH_MEMBERS', b: 'NOT_ENOUGH_MEMBERS' }],
     ['같은 플레이어 충돌', tgt(), [ch('a', 'p1', 0, 90), ch('b', 'p1', 0, 90)], { a: 'SAME_PLAYER', b: 'SAME_PLAYER' }],
     ['쿨감 범위 초과', tgt({ cooldownThreshold: 3 }), [ch('a', 'p1', 0, 90), ch('b', 'p2', 1, 90), ch('z', 'p3', 20, 90)], { z: 'COOLDOWN' }],
@@ -123,6 +133,33 @@ describe('보스 그룹', () => {
   });
 });
 
+describe('목적 우선순위', () => {
+  test('작은 파티부터 최대한 많이: 3인+3인보다 2인+4인', () => {
+    // A+B(100%)가 유일한 2인 파티, 남은 C~F는 4명이 모여야 120%
+    const chars = [ch('A', 'pA', 0, 50), ch('B', 'pB', 0, 50), ...['C', 'D', 'E', 'F'].map((x) => ch(x, `p${x}`, 0, 30))];
+    const r = solveTarget(tgt(), chars, 1000);
+    expect(partiesOf(r)).toEqual(['A+B', 'C+D+E+F']);
+    expectSameObjective(r, bruteForce(tgt(), chars));
+  });
+
+  test('인원 구성이 같으면 파티 안 배율이 고른 쪽 (가장 들쭉날쭉한 파티 기준)', () => {
+    // a70+b35 / c65+d40 → 편차 0.35, 0.25 / a70+d40 / c65+b35 → 편차 0.30, 0.30
+    const chars = [ch('a', 'p1', 0, 70), ch('b', 'p2', 0, 35), ch('c', 'p3', 0, 65), ch('d', 'p4', 0, 40)];
+    const t = tgt({ maxSize: 2 });
+    const r = solveTarget(t, chars, 1000);
+    expect(partiesOf(r)).toEqual(['a+d', 'b+c']);
+    expect(r.maxSpread).toBeCloseTo(0.3, 9);
+    expectSameObjective(r, bruteForce(t, chars));
+  });
+
+  test('그룹은 보스 중 하나라도 벗어나면 제외', () => {
+    const t = tgt({ bosses: [{ id: 'x', name: 'X', threshold: 100 }, { id: 'y', name: 'Y', threshold: 100 }] });
+    const c = (id: string, x: number, y: number): Character => ({ id, name: id, playerId: id, cooldown: 0, rates: { x, y } });
+    const r = solveTarget(t, [c('solo', 100, 50), c('weak', 50, 1), c('ok', 50, 50)], 1000);
+    expect(reasonsOf(r)).toEqual({ solo: 'SOLO', weak: 'TOO_WEAK', ok: 'NOT_ENOUGH_MEMBERS' });
+  });
+});
+
 /** 재현 가능한 의사난수 */
 function rng(seed: number) {
   return () => {
@@ -142,7 +179,8 @@ function randomCase(seed: number, nChars: number, nPlayers: number) {
   });
   const chars: Character[] = Array.from({ length: nChars }, (_, i) => {
     const rates: Record<string, number> = {};
-    for (const b of t.bosses) if (r() < 0.9) rates[b.id] = 10 + Math.floor(r() * 70);
+    // 솔로 가능(≥ 기준치)·너무 낮음(< 기준값×0.3)도 섞이도록 1~110%
+    for (const b of t.bosses) if (r() < 0.9) rates[b.id] = 1 + Math.floor(r() * 110);
     return { id: `c${i}`, name: `c${i}`, playerId: `p${Math.floor(r() * nPlayers)}`, cooldown: Math.floor(r() * 10), rates };
   });
   return { t, chars };
@@ -155,9 +193,7 @@ test('무작위 소규모 입력 200개: 완전탐색과 목적함수 값 일치
     const bf = bruteForce(t, chars);
     const msg = `seed ${seed}`;
     expect(r.optimal, msg).toBe(true);
-    expect(r.parties.length, msg).toBe(bf.count);
-    expect(r.stdev, msg).toBeCloseTo(bf.stdev, 9);
-    expect(r.minSlack, msg).toBeCloseTo(bf.minSlack, 9);
+    expectSameObjective(r, bf, msg);
     // 결과 파티가 실제로 모든 제약을 만족하는지
     const byId = new Map(chars.map((c) => [c.id, c]));
     const seen = new Set<string>();
@@ -181,7 +217,7 @@ test('최대 규모(캐릭터 30, 플레이어 10) 시간 제한 준수', () => 
     const { t, chars } = randomCase(seed * 7919, 30, 10);
     const r = solveTarget({ ...t, maxSize: 6, cooldownThreshold: 10 }, chars, 3000);
     expect(r.elapsedMs).toBeLessThan(4500);
-    console.log(`seed ${seed}: 파티 ${r.parties.length}, 후보 ${r.candidateCount}, 수확정 ${r.countOptimal}, 최적 ${r.optimal}, σ ${r.stdev.toFixed(4)}, ${r.elapsedMs.toFixed(0)}ms`);
+    console.log(`seed ${seed}: 파티 ${r.parties.length}, 후보 ${r.candidateCount}, 수확정 ${r.countOptimal}, 최적 ${r.optimal}, 편차 ${r.maxSpread.toFixed(3)}, ${r.elapsedMs.toFixed(0)}ms`);
   }
 });
 
