@@ -186,16 +186,16 @@ test('최대 규모(캐릭터 30, 플레이어 10) 시간 제한 준수', () => 
 });
 
 describe('기본 보스 목록', () => {
-  test('56개, 이름·id 중복 없음, 모두 설정 오류 없음', () => {
-    expect(DEFAULT_BOSSES).toHaveLength(56);
-    expect(new Set(DEFAULT_BOSSES.map((b) => b.name)).size).toBe(56);
-    expect(new Set(DEFAULT_BOSSES.map((b) => b.id)).size).toBe(56);
+  test('49개, 이름·id 중복 없음, 모두 설정 오류 없음', () => {
+    expect(DEFAULT_BOSSES).toHaveLength(49);
+    expect(new Set(DEFAULT_BOSSES.map((b) => b.name)).size).toBe(49);
+    expect(new Set(DEFAULT_BOSSES.map((b) => b.id)).size).toBe(49);
     expect(DEFAULT_BOSSES.filter((b) => validateBoss(b))).toEqual([]);
   });
 
-  test('어려운 순: 처음은 익스트림 발드릭스, 끝은 카오스 자쿰', () => {
-    expect(DEFAULT_BOSSES[0].name).toBe('익스트림 발드릭스');
-    expect(DEFAULT_BOSSES[55].name).toBe('카오스 자쿰');
+  test('보스정보 페이지 순: 처음은 하드 유피테르, 끝은 노말 스우', () => {
+    expect(DEFAULT_BOSSES[0].name).toBe('하드 유피테르');
+    expect(DEFAULT_BOSSES[48].name).toBe('노말 스우');
   });
 });
 
