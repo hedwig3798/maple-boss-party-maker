@@ -7,7 +7,8 @@ export type Reason =
   | 'SAME_PLAYER'
   | 'COOLDOWN'
   | 'NO_COMBINATION'
-  | 'EXCLUDED';
+  | 'EXCLUDED'
+  | 'OTHER_DIFFICULTY';
 
 export const REASON_LABEL: Record<Reason, string> = {
   NO_RATE: '배율 미입력',
@@ -16,6 +17,7 @@ export const REASON_LABEL: Record<Reason, string> = {
   COOLDOWN: '쿨감 범위 초과',
   NO_COMBINATION: '기준치를 채울 조합 없음',
   EXCLUDED: '최적화 결과 제외',
+  OTHER_DIFFICULTY: '다른 난이도에 배정',
 };
 
 export interface PartyResult {
@@ -73,7 +75,7 @@ export function isBetter(
   return a.minSlack > b.minSlack + EPS;
 }
 
-const hasRate = (c: Character, bossId: string) => {
+export const hasRate = (c: Character, bossId: string) => {
   const r = c.rates[bossId];
   return typeof r === 'number' && Number.isFinite(r);
 };

@@ -20,7 +20,7 @@ interface Props {
   onCancel: () => void;
 }
 
-const REASON_ORDER: Reason[] = ['EXCLUDED', 'NO_COMBINATION', 'COOLDOWN', 'SAME_PLAYER', 'NOT_ENOUGH_MEMBERS', 'NO_RATE'];
+const REASON_ORDER: Reason[] = ['OTHER_DIFFICULTY', 'EXCLUDED', 'NO_COMBINATION', 'COOLDOWN', 'SAME_PLAYER', 'NOT_ENOUGH_MEMBERS', 'NO_RATE'];
 const pct = (x: number) => `${Math.round(x * 10) / 10}%`;
 const fmt = (x: number, d = 3) => x.toFixed(d);
 
@@ -151,7 +151,7 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, onRun,
                   </div>
                 )}
                 {r.unassigned.length > 0 && (
-                  <details className="unassigned" open={r.unassigned.some((u) => u.reason !== 'NO_RATE')}>
+                  <details className="unassigned" open={r.unassigned.some((u) => u.reason !== 'NO_RATE' && u.reason !== 'OTHER_DIFFICULTY')}>
                     <summary>미배정 캐릭터 {r.unassigned.length}개</summary>
                     <ul>
                       {REASON_ORDER.filter((reason) => byReason.has(reason)).map((reason) => (

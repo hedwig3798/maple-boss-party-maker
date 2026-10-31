@@ -1,4 +1,5 @@
 import { AppData, Boss, MAX_PARTY_SIZE } from '../types';
+import { bossKind } from '../bossFamily';
 
 /** 독립적으로 파티를 계산하는 단위: 그룹에 속하지 않은 보스 하나, 또는 보스 그룹 하나 */
 export interface Target {
@@ -40,6 +41,17 @@ export function buildTargets(data: AppData): Target[] {
       if (e) {
         error = `${b.name}: ${e}`;
         break;
+      }
+    }
+    if (!error) {
+      const seen = new Map<string, string>();
+      for (const b of bosses) {
+        const f = bossKind(b.name).family;
+        if (seen.has(f)) {
+          error = `같은 보스의 다른 난이도는 한 그룹에 넣을 수 없습니다 (${seen.get(f)}, ${b.name})`;
+          break;
+        }
+        seen.set(f, b.name);
       }
     }
     if (!error && minSize > maxSize) {

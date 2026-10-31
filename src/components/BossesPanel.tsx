@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppData, Boss, MAX_PARTY_SIZE } from '../types';
 import { newId } from '../storage';
 import { buildTargets, validateBoss } from '../solver/targets';
 import { NumberInput } from './NumberInput';
+import { bossKind, groupByFamily } from '../bossFamily';
 
 type Update = (fn: (d: AppData) => AppData) => void;
 
@@ -11,10 +12,13 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
   data.groups.forEach((g) => g.bossIds.forEach((b) => groupOf.set(b, g.id)));
   const groupTargets = new Map(buildTargets(data).filter((t) => t.isGroup).map((t) => [t.key, t]));
   const enabledBosses = data.bosses.filter((b) => b.enabled);
+  const bossById = new Map(data.bosses.map((b) => [b.id, b]));
   const offCount = data.bosses.length - enabledBosses.length;
   // 켜진 보스가 하나도 없으면(처음 방문) 꺼진 보스까지 펼쳐서 시작
   const [showOff, setShowOff] = useState(enabledBosses.length === 0);
   const visibleBosses = showOff ? data.bosses : enabledBosses;
+  const visibleFamilies = groupByFamily(visibleBosses);
+  const familyOf = (b: Boss) => bossKind(b.name).family;
 
   const setBoss = (id: string, patch: Partial<Boss>) =>
     update((d) => ({ ...d, bosses: d.bosses.map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
@@ -67,7 +71,11 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
             </button>
           </div>
         </div>
-        <p className="muted">가는 보스만 체크하세요. 꺼진 보스는 캐릭터 배율 칸·그룹·계산에서 빠지며, 입력해 둔 배율은 남아 있습니다.</p>
+        <p className="muted">
+          가는 보스만 체크하세요. 꺼진 보스는 캐릭터 배율 칸·그룹·계산에서 빠지며, 입력해 둔 배율은 남아 있습니다.
+          <br />
+          이름 앞 난이도(익스트림·카오스·하드·노말·이지)가 다른 같은 보스는 함께 묶어 보여 줍니다. 한 캐릭터는 같은 보스에서 한 난이도에만 배정되며, 높은 난이도부터 파티를 짭니다.
+        </p>
         {data.bosses.length === 0 ? (
           <p className="muted">보스가 없습니다.</p>
         ) : visibleBosses.length === 0 ? (
@@ -88,39 +96,47 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
                 </tr>
               </thead>
               <tbody>
-                {visibleBosses.map((b) => {
-                  const err = validateBoss(b);
-                  const g = data.groups.find((x) => x.id === groupOf.get(b.id));
-                  return (
-                    <tr key={b.id} className={b.enabled ? '' : 'off'}>
-                      <td>
-                        <input type="checkbox" className="toggle" title="이 보스 사용" checked={b.enabled} onChange={(e) => setBoss(b.id, { enabled: e.target.checked })} />
-                      </td>
-                      <td>
-                        <input className="boss-name" value={b.name} placeholder="보스 이름" onChange={(e) => setBoss(b.id, { name: e.target.value })} />
-                        {err && <div className="error">{err}</div>}
-                      </td>
-                      <td>
-                        <NumberInput className="num" value={b.minSize} min={1} step={1} onChange={(v) => setBoss(b.id, { minSize: v ?? 1 })} />
-                      </td>
-                      <td>
-                        <NumberInput className="num" value={b.maxSize} min={1} step={1} onChange={(v) => setBoss(b.id, { maxSize: v ?? MAX_PARTY_SIZE })} />
-                      </td>
-                      <td>
-                        <NumberInput className="num" value={b.rateThreshold} min={0} onChange={(v) => setBoss(b.id, { rateThreshold: v ?? 0 })} />
-                      </td>
-                      <td>
-                        <NumberInput className="num" value={b.cooldownThreshold} min={0} onChange={(v) => setBoss(b.id, { cooldownThreshold: v ?? 0 })} />
-                      </td>
-                      <td className="muted">{g ? g.name : '단독'}</td>
-                      <td>
-                        <button className="icon danger" title="보스 삭제" onClick={() => removeBoss(b.id)}>
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {visibleFamilies.map((f) => [
+                  <tr key={`family:${f.bosses[0].id}`} className="family-row">
+                    <td colSpan={8}>
+                      {f.family || '(이름 없음)'}
+                      {f.bosses.length > 1 && <small className="muted"> 난이도 {f.bosses.length}개 · 캐릭터마다 하나만</small>}
+                    </td>
+                  </tr>,
+                  ...f.bosses.map((b) => {
+                    const err = validateBoss(b);
+                    const g = data.groups.find((x) => x.id === groupOf.get(b.id));
+                    return (
+                      <tr key={b.id} className={b.enabled ? '' : 'off'}>
+                        <td>
+                          <input type="checkbox" className="toggle" title="이 보스 사용" checked={b.enabled} onChange={(e) => setBoss(b.id, { enabled: e.target.checked })} />
+                        </td>
+                        <td>
+                          <BossNameInput value={b.name} onCommit={(name) => setBoss(b.id, { name })} />
+                          {err && <div className="error">{err}</div>}
+                        </td>
+                        <td>
+                          <NumberInput className="num" value={b.minSize} min={1} step={1} onChange={(v) => setBoss(b.id, { minSize: v ?? 1 })} />
+                        </td>
+                        <td>
+                          <NumberInput className="num" value={b.maxSize} min={1} step={1} onChange={(v) => setBoss(b.id, { maxSize: v ?? MAX_PARTY_SIZE })} />
+                        </td>
+                        <td>
+                          <NumberInput className="num" value={b.rateThreshold} min={0} onChange={(v) => setBoss(b.id, { rateThreshold: v ?? 0 })} />
+                        </td>
+                        <td>
+                          <NumberInput className="num" value={b.cooldownThreshold} min={0} onChange={(v) => setBoss(b.id, { cooldownThreshold: v ?? 0 })} />
+                        </td>
+                        <td className="muted">{g ? g.name : '단독'}</td>
+                        <td>
+                          <button className="icon danger" title="보스 삭제" onClick={() => removeBoss(b.id)}>
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }),
+                ])}
               </tbody>
             </table>
           </div>
@@ -157,12 +173,17 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
                 </button>
               </div>
               <div className="chips">
-                {enabledBosses.map((b) => {
+                {groupByFamily(enabledBosses).flatMap((f) => f.bosses).map((b) => {
                   const owner = groupOf.get(b.id);
                   const inThis = owner === g.id;
-                  const disabled = !!owner && !inThis;
+                  const sameBoss = !inThis && g.bossIds.some((id) => {
+                    const x = bossById.get(id);
+                    return !!x && x.enabled && familyOf(x) === familyOf(b);
+                  });
+                  const disabled = (!!owner && !inThis) || sameBoss;
+                  const why = owner && !inThis ? '다른 그룹에 속한 보스' : sameBoss ? '같은 보스의 다른 난이도가 이 그룹에 있음' : '';
                   return (
-                    <label key={b.id} className={`chip ${inThis ? 'on' : ''} ${disabled ? 'disabled' : ''}`} title={disabled ? '다른 그룹에 속한 보스' : ''}>
+                    <label key={b.id} className={`chip ${inThis ? 'on' : ''} ${disabled ? 'disabled' : ''}`} title={why}>
                       <input type="checkbox" checked={inThis} disabled={disabled} onChange={(e) => toggleGroupBoss(g.id, b.id, e.target.checked)} />
                       {b.name || '(이름 없음)'}
                     </label>
@@ -185,5 +206,22 @@ export function BossesPanel({ data, update }: { data: AppData; update: Update })
         })}
       </section>
     </div>
+  );
+}
+
+/** 이름이 바뀌면 행이 다른 보스 묶음으로 옮겨지므로, 입력 중에는 반영하지 않고 칸을 벗어날 때 반영한다 */
+function BossNameInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => text !== value && onCommit(text);
+  return (
+    <input
+      className="boss-name"
+      value={text}
+      placeholder="보스 이름"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
   );
 }

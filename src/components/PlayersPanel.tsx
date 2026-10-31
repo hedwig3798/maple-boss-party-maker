@@ -3,6 +3,7 @@ import { AppData, Character } from '../types';
 import { newId } from '../storage';
 import { NumberInput } from './NumberInput';
 import { PasteImport } from './PasteImport';
+import { bossKind, groupByFamily } from '../bossFamily';
 
 type Update = (fn: (d: AppData) => AppData) => void;
 
@@ -10,7 +11,10 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
   const [newName, setNewName] = useState('');
   /** 붙여넣기 칸을 연 플레이어 */
   const [pastingId, setPastingId] = useState<string | null>(null);
-  const bosses = data.bosses.filter((b) => b.enabled);
+  const families = groupByFamily(data.bosses.filter((b) => b.enabled));
+  const bosses = families.flatMap((f) => f.bosses);
+  /** 보스 묶음의 첫 칸(왼쪽 구분선) */
+  const famStart = new Set(families.map((f) => f.bosses[0].id));
 
   const addPlayer = () => {
     const name = newName.trim();
@@ -93,15 +97,27 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
                 <table>
                   <thead>
                     <tr>
-                      <th>캐릭터</th>
-                      <th>소속</th>
-                      <th title="쿨타임 감소(초)">쿨감(초)</th>
-                      {bosses.map((b) => (
-                        <th key={b.id} title={`${b.name} 배율(%) — 비우면 미참여`}>
-                          {b.name || '(이름 없음)'} %
+                      <th rowSpan={2}>캐릭터</th>
+                      <th rowSpan={2}>소속</th>
+                      <th rowSpan={2} title="쿨타임 감소(초)">쿨감(초)</th>
+                      {families.map((f) => (
+                        <th
+                          key={f.bosses[0].id}
+                          colSpan={f.bosses.length}
+                          className="fam-start fam-head"
+                          title={f.bosses.length > 1 ? '같은 보스는 캐릭터마다 한 난이도에만 배정됩니다' : undefined}
+                        >
+                          {f.family || '(이름 없음)'}
                         </th>
                       ))}
-                      <th />
+                      <th rowSpan={2} />
+                    </tr>
+                    <tr>
+                      {bosses.map((b) => (
+                        <th key={b.id} className={famStart.has(b.id) ? 'fam-start' : undefined} title={`${b.name} 배율(%) — 비우면 미참여`}>
+                          {bossKind(b.name).difficulty ?? ''} %
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -123,7 +139,7 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
                           <NumberInput className="num" value={c.cooldown} min={0} onChange={(v) => setChar(c.id, { cooldown: v ?? 0 })} />
                         </td>
                         {bosses.map((b) => (
-                          <td key={b.id}>
+                          <td key={b.id} className={famStart.has(b.id) ? 'fam-start' : undefined}>
                             <NumberInput className="num" value={c.rates[b.id]} min={0} placeholder="—" onChange={(v) => setRate(c, b.id, v)} />
                           </td>
                         ))}
