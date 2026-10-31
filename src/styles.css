@@ -119,3 +119,6 @@ table.result td { white-space: normal; }
   .app { padding: 12px 16px; }
   .reason { display: block; margin-bottom: 2px; }
 }
+
+textarea.paste-box { font: inherit; color: var(--text); background: var(--input); border: 1px dashed var(--line); border-radius: 6px; padding: 10px; height: 64px; resize: none; }
+textarea.paste-box:focus { outline: 2px solid var(--accent); outline-offset: -1px; }

@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { AppData, Character } from '../types';
 import { newId } from '../storage';
 import { NumberInput } from './NumberInput';
+import { PasteImport } from './PasteImport';
 
 type Update = (fn: (d: AppData) => AppData) => void;
 
 export function PlayersPanel({ data, update }: { data: AppData; update: Update }) {
   const [newName, setNewName] = useState('');
+  /** 붙여넣기 칸을 연 플레이어 */
+  const [pastingId, setPastingId] = useState<string | null>(null);
   const bosses = data.bosses.filter((b) => b.enabled);
 
   const addPlayer = () => {
@@ -76,11 +79,13 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
               />
               <div className="row">
                 <button onClick={() => addCharacter(p.id)}>+ 캐릭터</button>
+                <button onClick={() => setPastingId(pastingId === p.id ? null : p.id)}>붙여넣기</button>
                 <button className="danger" onClick={() => removePlayer(p.id)}>
                   플레이어 삭제
                 </button>
               </div>
             </div>
+            {pastingId === p.id && <PasteImport data={data} player={p} update={update} onClose={() => setPastingId(null)} />}
             {chars.length === 0 ? (
               <p className="muted">캐릭터가 없습니다.</p>
             ) : (
