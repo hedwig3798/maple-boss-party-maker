@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppData } from './types';
-import { DEFAULT_DATA, downloadJson, loadData, normalize, saveData } from './storage';
+import { DEFAULT_DATA, downloadJson, loadData, loadRun, normalize, saveData, saveRun } from './storage';
 import { PlayersPanel } from './components/PlayersPanel';
 import { BossesPanel } from './components/BossesPanel';
 import { ResultsPanel, RunState } from './components/ResultsPanel';
 import type { WorkerResponse } from './solver/worker';
+// 인라인 워커: 배포용 HTML 한 파일(file://)에서도 별도 워커 파일 없이 돌아간다
+import SolverWorker from './solver/worker.ts?worker&inline';
 
 type Tab = 'players' | 'bosses' | 'results';
 const TABS: [Tab, string][] = [
@@ -14,14 +16,25 @@ const TABS: [Tab, string][] = [
 ];
 
 export default function App() {
-  const [data, setData] = useState<AppData>(loadData);
+  const [initial] = useState(() => {
+    const d = loadData();
+    return { data: d, run: loadRun(d) };
+  });
+  const [data, setData] = useState<AppData>(initial.data);
   const [tab, setTab] = useState<Tab>('players');
   const [timeLimitSec, setTimeLimitSec] = useState(3);
-  const [run, setRun] = useState<RunState>({ running: false, done: 0, total: 0, results: [], snapshot: null, edits: {} });
+  const [run, setRun] = useState<RunState>(() => {
+    const saved = initial.run;
+    return { running: false, done: 0, total: 0, results: saved?.results ?? [], snapshot: saved?.snapshot ?? null, edits: saved?.edits ?? {} };
+  });
   const workerRef = useRef<Worker | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => saveData(data), [data]);
+  // 계산 중에는 저장하지 않아, 도중에 창을 닫으면 직전 결과가 남는다
+  useEffect(() => {
+    if (!run.running) saveRun(run.snapshot ? { results: run.results, snapshot: run.snapshot, edits: run.edits } : null);
+  }, [run.running, run.results, run.snapshot, run.edits]);
   useEffect(() => () => workerRef.current?.terminate(), []);
 
   const update = (fn: (d: AppData) => AppData) => setData(fn);
@@ -35,7 +48,7 @@ export default function App() {
   const startRun = () => {
     if (Object.keys(run.edits).length > 0 && !confirm('손으로 고친 파티가 있습니다. 다시 계산하면 사라집니다. 계속할까요?')) return;
     workerRef.current?.terminate();
-    const worker = new Worker(new URL('./solver/worker.ts', import.meta.url), { type: 'module' });
+    const worker = new SolverWorker();
     workerRef.current = worker;
     const snapshot = data;
     setRun({ running: true, done: 0, total: 0, results: [], snapshot, edits: {} });

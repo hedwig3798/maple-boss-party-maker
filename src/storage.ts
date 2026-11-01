@@ -1,7 +1,9 @@
 import { AppData, Boss, BossGroup, Character, DEFAULT_WEAK_RATIO, Player } from './types';
 import { DEFAULT_BOSSES } from './defaultBosses';
+import type { TargetResult } from './solver/solve';
 
 const KEY = 'maple-boss-party-maker:v1';
+const RUN_KEY = 'maple-boss-party-maker:result:v1';
 
 /** 처음 방문·전체 초기화 시 상태: 플레이어·캐릭터는 비우고 보스는 기본 목록 */
 export const DEFAULT_DATA: AppData = { players: [], characters: [], bosses: DEFAULT_BOSSES, groups: [], weakRatio: DEFAULT_WEAK_RATIO };
@@ -27,6 +29,36 @@ export function saveData(data: AppData) {
     localStorage.setItem(KEY, JSON.stringify(data));
   } catch {
     // 저장 실패는 무시 (사생활 보호 모드 등)
+  }
+}
+
+export interface SavedRun {
+  results: TargetResult[];
+  snapshot: AppData;
+  edits: Record<string, string[][]>;
+}
+
+/** 마지막 계산 결과(손으로 고친 파티 포함). 입력과 따로 저장해 브라우저를 다시 열어도 결과 화면이 남는다 */
+export function loadRun(current: AppData): SavedRun | null {
+  try {
+    const raw = localStorage.getItem(RUN_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!Array.isArray(o.results) || !o.edits || typeof o.edits !== 'object') return null;
+    const snapshot = normalize(o.snapshot);
+    // 입력이 그대로면 같은 객체로 두어 '입력이 바뀌었습니다' 판정이 계산 직후와 같게
+    return { results: o.results, edits: o.edits, snapshot: JSON.stringify(snapshot) === JSON.stringify(current) ? current : snapshot };
+  } catch {
+    return null;
+  }
+}
+
+export function saveRun(run: SavedRun | null) {
+  try {
+    if (run && run.results.length > 0) localStorage.setItem(RUN_KEY, JSON.stringify(run));
+    else localStorage.removeItem(RUN_KEY);
+  } catch {
+    // 저장 실패는 무시
   }
 }
 
