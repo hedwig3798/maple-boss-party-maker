@@ -155,6 +155,44 @@ describe('목적 우선순위', () => {
     expectSameObjective(r, bruteForce(t, chars));
   });
 
+  test('배율 순위: 낮은 배율이 가고 높은 배율이 남지 않는다', () => {
+    // 순위 없이 2인 파티를 많이 만들면 A+E, B+D로 C(40)가 빠진다. 순위 규칙이면 E(20)가 빠진다
+    const chars = [ch('A', 'pA', 0, 80), ch('B', 'pB', 0, 70), ch('C', 'pC', 0, 40), ch('D', 'pD', 0, 30), ch('E', 'pE', 0, 20)];
+    const r = solveTarget(tgt(), chars, 1000);
+    expect(partiesOf(r)).toEqual(['A+C', 'B+D']);
+    expect(reasonsOf(r)).toEqual({ E: 'EXCLUDED' });
+    expectSameObjective(r, bruteForce(tgt(), chars));
+  });
+
+  test('배율 순위: 한 명씩은 못 넣어도 둘을 함께 넣을 수 있으면 넣는다', () => {
+    // 2인 보스: A+B 다음 C 혼자는 못 넣지만 C·D를 함께 넣으면 A+C, B+D
+    const t = tgt({ maxSize: 2 });
+    const chars = [ch('A', 'pA', 0, 80), ch('B', 'pB', 0, 75), ch('C', 'pC', 0, 30), ch('D', 'pD', 0, 25)];
+    const r = solveTarget(t, chars, 1000);
+    expect(partiesOf(r)).toEqual(['A+C', 'B+D']);
+    expectSameObjective(r, bruteForce(t, chars));
+  });
+
+  test('배율 순위: 윗순위를 넣으면 못 들어가는 캐릭터만 건너뛴다', () => {
+    // 2인 보스. E(70)·B(65)는 같은 플레이어라 각자 짝이 필요한데 짝이 될 수 있는 건 A(35)뿐 → E+A, B는 건너뜀
+    // (완전탐색으로 확인한 값)
+    const t = tgt({ maxSize: 2 });
+    const chars = [ch('E', 'p0', 0, 70), ch('B', 'p0', 0, 65), ch('A', 'p1', 0, 35), ch('C', 'p3', 0, 15), ch('D', 'p2', 0, 15)];
+    const r = solveTarget(t, chars, 1000);
+    expect(partiesOf(r)).toEqual(['A+E']);
+    expect(reasonsOf(r)).toEqual({ B: 'RANK_BLOCKED', C: 'NO_COMBINATION', D: 'NO_COMBINATION' });
+    expectSameObjective(r, bruteForce(t, chars));
+  });
+
+  test('그룹 순위는 보스 배율의 단순 평균', () => {
+    // 평균: a 60, b 55, c 50, d 45. 2인 파티에 짝수 인원이 아니면 가장 낮은 d가 빠진다
+    const t = tgt({ maxSize: 2, bosses: [{ id: 'x', name: 'X', threshold: 100 }, { id: 'y', name: 'Y', threshold: 100 }] });
+    const c = (id: string, x: number, y: number): Character => ({ id, name: id, playerId: id, cooldown: 0, rates: { x, y } });
+    const r = solveTarget(t, [c('a', 70, 50), c('b', 50, 60), c('c', 50, 50), c('d', 60, 30)], 1000);
+    expect(r.unassigned.map((u) => u.characterId)).not.toContain('a');
+    expectSameObjective(r, bruteForce(t, [c('a', 70, 50), c('b', 50, 60), c('c', 50, 50), c('d', 60, 30)]));
+  });
+
   test('그룹은 보스 중 하나라도 벗어나면 제외', () => {
     const t = tgt({ bosses: [{ id: 'x', name: 'X', threshold: 100 }, { id: 'y', name: 'Y', threshold: 100 }] });
     const c = (id: string, x: number, y: number): Character => ({ id, name: id, playerId: id, cooldown: 0, rates: { x, y } });
@@ -220,7 +258,7 @@ test('최대 규모(캐릭터 30, 플레이어 10) 시간 제한 준수', () => 
     const { t, chars } = randomCase(seed * 7919, 30, 10);
     const r = solveTarget({ ...t, maxSize: 6, cooldownThreshold: 10 }, chars, 3000);
     expect(r.elapsedMs).toBeLessThan(4500);
-    console.log(`seed ${seed}: 파티 ${r.parties.length}, 후보 ${r.candidateCount}, 수확정 ${r.countOptimal}, 최적 ${r.optimal}, 편차 ${r.maxSpread.toFixed(3)}, ${r.elapsedMs.toFixed(0)}ms`);
+    console.log(`seed ${seed}: 파티 ${r.parties.length}, 최적 ${r.optimal}, 편차 ${r.maxSpread.toFixed(3)}, ${r.elapsedMs.toFixed(0)}ms`);
   }
 });
 

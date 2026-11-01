@@ -132,7 +132,8 @@ textarea.paste-box:focus { outline: 2px solid var(--accent); outline-offset: -1p
 .members.inline { display: inline-flex; vertical-align: middle; }
 .drop-target { outline: 1px dashed var(--line); outline-offset: -1px; }
 .drop-target.over, tr.drop-target.over td { background: var(--warn-bg); }
-td.new-party { text-align: center; padding: 10px; }
+td.new-party, td.empty-party { text-align: center; padding: 10px; }
+.rank-warn { margin: 8px 0 0; }
 .party-warn { margin: 4px 0 0; padding-left: 0; list-style: none; color: var(--danger); font-size: 12px; }
 
 h3 { font-size: 15px; margin: 0; }

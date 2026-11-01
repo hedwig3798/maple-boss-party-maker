@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AppData } from '../types';
 import { Reason, REASON_LABEL, TargetResult } from '../solver/solve';
-import { crossDifficultyConflicts, evaluateParty, EvaluatedParty, moveMember } from '../solver/manual';
+import { crossDifficultyConflicts, evaluateParty, EvaluatedParty, moveMember, rankViolations } from '../solver/manual';
 import { NumberInput } from './NumberInput';
 import { SummaryTables } from './SummaryTables';
 
@@ -32,7 +32,7 @@ interface Props {
 /** 손으로 파티에서 뺀 캐릭터 */
 type PoolReason = Reason | 'MANUAL';
 const POOL_LABEL: Record<PoolReason, string> = { ...REASON_LABEL, MANUAL: '직접 뺌' };
-const REASON_ORDER: PoolReason[] = ['MANUAL', 'OTHER_DIFFICULTY', 'SOLO', 'TOO_WEAK', 'EXCLUDED', 'NO_COMBINATION', 'COOLDOWN', 'SAME_PLAYER', 'NOT_ENOUGH_MEMBERS', 'NO_RATE'];
+const REASON_ORDER: PoolReason[] = ['MANUAL', 'OTHER_DIFFICULTY', 'SOLO', 'TOO_WEAK', 'EXCLUDED', 'RANK_BLOCKED', 'NO_COMBINATION', 'COOLDOWN', 'SAME_PLAYER', 'NOT_ENOUGH_MEMBERS', 'NO_RATE'];
 const pct = (x: number) => `${Math.round(x * 10) / 10}%`;
 const fmt = (x: number, d = 3) => x.toFixed(d);
 type Drag = { key: string; id: string };
@@ -132,9 +132,9 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
         </div>
         {stale && !run.running && <div className="warn">입력이 바뀌었습니다. 다시 계산하세요.</div>}
         <p className="muted small">
-          혼자 기준치를 채우는(솔로 가능) 캐릭터와 배율이 기준값(기준치 ÷ 최대 인원)의 {weakRatio}배 미만인 캐릭터는 빼고, ① 작은 파티부터 최대한 많이 ② 파티 안 배율 편차(최고 − 최저, 기준치 대비)가 가장 큰 파티의 편차 최소 ③ 편차 합 최소 순으로 짭니다. 시간 제한 안에 최적을 증명하지 못하면 그때까지 찾은 가장 좋은 결과를 보여줍니다.
+          혼자 기준치를 채우는(솔로 가능) 캐릭터와 배율이 기준값(기준치 ÷ 최대 인원)의 {weakRatio}배 미만인 캐릭터는 빼고 짭니다. 가장 먼저 배율 순위를 지킵니다: 배율(그룹이면 보스 배율 평균)이 높은 캐릭터부터 넣고, 빠지는 캐릭터는 배율 하위권입니다. 높은 배율이 빠지는 건 윗순위를 다 넣으면 파티를 짤 수 없을 때뿐입니다. 그다음 ① 파티 수 최대 ② 작은 파티부터 최대한 많이 ③ 파티 안 배율 편차(최고 − 최저, 기준치 대비)가 가장 큰 파티의 편차 최소 ④ 편차 합 최소 순으로 고릅니다. 시간 제한 안에 최적을 증명하지 못하면 그때까지 찾은 가장 좋은 결과를 보여줍니다.
         </p>
-        {run.results.length > 0 && <p className="muted small">계산이 끝나면 캐릭터를 끌어서 다른 파티·새 파티·미배정으로 옮길 수 있습니다. 같은 보스(그룹) 안에서만 옮겨집니다.</p>}
+        {run.results.length > 0 && <p className="muted small">계산이 끝나면 캐릭터를 끌어서 다른 파티·새 파티·미배정으로 옮길 수 있습니다. 같은 보스(그룹) 안에서만 옮겨집니다. '+ 파티 추가'로 빈 파티를 만들어 채울 수도 있습니다.</p>}
       </section>
 
       {run.results.map((r) => {
@@ -149,8 +149,18 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
         ].filter((u) => !assigned.has(u.id));
         const byReason = new Map<PoolReason, string[]>();
         pool.forEach((u) => byReason.set(u.reason, [...(byReason.get(u.reason) ?? []), u.id]));
-        const maxSpread = parties.reduce((a, p) => Math.max(a, p.spread), 0);
+        const filled = parties.filter((p) => p.memberIds.length > 0);
+        const maxSpread = filled.reduce((a, p) => Math.max(a, p.spread), 0);
         const canEdit = !run.running && !r.error;
+        // 넣을 수 있었는데 빠진 캐릭터(직접 뺌·하위 배율 제외)가 파티 구성원보다 배율이 높으면 순위 위반
+        const violations = rankViolations(
+          r,
+          parties.map((p) => p.memberIds),
+          pool.filter((u) => u.reason === 'MANUAL' || u.reason === 'EXCLUDED').map((u) => u.id),
+          charById,
+        );
+        const violating = new Set(violations.map((v) => v.id));
+        const setParties = (next: string[][]) => setEdit(r.key, next);
         return (
           <section className="card" key={r.key}>
             <div className="row between wrap">
@@ -159,8 +169,13 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
               </h2>
               {!r.error && (
                 <div className="row wrap">
-                  <span className="badge">파티 {parties.length}개</span>
-                  {parties.length > 0 && <span className="badge">최대 편차 {fmt(maxSpread)}</span>}
+                  <span className="badge">파티 {filled.length}개</span>
+                  {filled.length > 0 && <span className="badge">최대 편차 {fmt(maxSpread)}</span>}
+                  {canEdit && (
+                    <button className="icon" onClick={() => setParties([...partiesOf(r), []])}>
+                      + 파티 추가
+                    </button>
+                  )}
                   {edited ? (
                     <>
                       <span className="badge warn-badge">직접 수정함</span>
@@ -170,10 +185,6 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
                     </>
                   ) : r.optimal ? (
                     <span className="badge ok">최적</span>
-                  ) : r.countOptimal ? (
-                    <span className="badge warn-badge" title="파티 인원 구성은 최적임이 확정, 편차는 시간 제한으로 최적 미확정">
-                      인원 구성 확정 · 편차 미확정
-                    </span>
                   ) : (
                     <span className="badge warn-badge">시간 초과 · 최적 미확정</span>
                   )}
@@ -202,12 +213,19 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
                           <th>배율 편차</th>
                           <th>여유율</th>
                           <th>쿨감 범위</th>
+                          {canEdit && <th />}
                         </tr>
                       </thead>
                       <tbody>
                         {parties.map((p, i) => (
                           <tr key={i} {...(canEdit ? dropZone(r, i) : {})}>
                             <td>{i + 1}</td>
+                            {p.memberIds.length === 0 ? (
+                              <td colSpan={5} className="muted empty-party">
+                                빈 파티 — 캐릭터를 끌어 놓으세요
+                              </td>
+                            ) : (
+                              <>
                             <td>
                               <div className="members">
                                 {p.memberIds.map((id) => (
@@ -253,11 +271,24 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
                             <td>
                               {p.cooldownMin}~{p.cooldownMax}초 <small className="muted">(폭 {Math.round((p.cooldownMax - p.cooldownMin) * 100) / 100})</small>
                             </td>
+                              </>
+                            )}
+                            {canEdit && (
+                              <td>
+                                <button
+                                  className="icon danger"
+                                  title={p.memberIds.length ? '파티를 지우고 구성원은 미배정으로' : '빈 파티 지우기'}
+                                  onClick={() => setParties(partiesOf(r).filter((_, j) => j !== i))}
+                                >
+                                  ×
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                         {canEdit && drag?.key === r.key && (
                           <tr {...dropZone(r, parties.length)}>
-                            <td colSpan={6} className="muted new-party">
+                            <td colSpan={7} className="muted new-party">
                               + 여기에 놓으면 새 파티
                             </td>
                           </tr>
@@ -265,6 +296,15 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
                       </tbody>
                     </table>
                   </div>
+                )}
+                {violations.length > 0 && (
+                  <ul className="party-warn rank-warn">
+                    {violations.map((v) => (
+                      <li key={v.id}>
+                        배율 순위: {label(v.id)}({pct(v.avg)})이(가) 미배정인데 더 낮은 {v.lower.map(label).join(', ')}이(가) 파티에 있습니다
+                      </li>
+                    ))}
+                  </ul>
                 )}
                 {(pool.length > 0 || (canEdit && drag?.key === r.key)) && (
                   <div {...(canEdit ? dropZone(r, -1) : {})}>
@@ -278,7 +318,7 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
                             <span className={`reason r-${reason}`}>{POOL_LABEL[reason]}</span>
                             <span className="members inline">
                               {byReason.get(reason)!.map((id) => (
-                                <span className={`member${canEdit ? ' grab' : ''}`} key={id} {...(canEdit ? draggable(r, id) : {})}>
+                                <span className={`member${canEdit ? ' grab' : ''}${violating.has(id) ? ' bad' : ''}`} key={id} {...(canEdit ? draggable(r, id) : {})}>
                                   {label(id)}
                                   <small>{owner(id)}</small>
                                 </span>
@@ -299,10 +339,10 @@ export function ResultsPanel({ run, stale, timeLimitSec, setTimeLimitSec, weakRa
       {!run.running && run.results.length > 0 && (
         <SummaryTables
           tables={run.results
-            .filter((r) => !r.error && evaluated.get(r.key)!.length > 0)
+            .filter((r) => !r.error && evaluated.get(r.key)!.some((p) => p.memberIds.length > 0))
             .map((r) => ({
               title: r.name,
-              columns: evaluated.get(r.key)!.map((p) => ({
+              columns: evaluated.get(r.key)!.filter((p) => p.memberIds.length > 0).map((p) => ({
                 header: `${r.isGroup ? `${r.bossNames[p.tightest]} ` : ''}${pct(p.rateSums[p.tightest])}`,
                 members: p.memberIds.map(label),
               })),

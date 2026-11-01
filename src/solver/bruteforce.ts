@@ -1,18 +1,24 @@
 import { Character } from '../types';
 import { Target } from './targets';
-import { EPS, isBetter, Objective, outlierReason } from './solve';
+import { EPS, isBetter, Objective, outlierReason, rankCompare } from './solve';
+
+type Best = Objective & { count: number; parties: string[][] };
 
 /**
  * 검증용 완전탐색: 캐릭터마다 (미배정 | 기존 파티 | 새 파티)를 모두 시도한다.
  * 작은 입력(캐릭터 ~12개)에서만 사용.
+ * 배율 순위 규칙: 상위 k명(컷)마다, 그 안에서 순위대로 "넣고도 파티를 짤 수 있으면" 넣은 구성만 후보로 본다.
  */
 export function bruteForce(target: Target, characters: Character[]) {
+  const bossIds = target.bosses.map((b) => b.id);
   const eligible = characters.filter(
     (c) => target.bosses.every((b) => typeof c.rates[b.id] === 'number') && !outlierReason(target, c),
   );
   const n = eligible.length;
   const label = new Array<number>(n).fill(-1);
-  let best: Objective & { count: number; parties: string[][] } = { sizeCounts: [], maxSpread: 0, sumSpread: 0, count: 0, parties: [] };
+  const empty: Best = { sizeCounts: [], maxSpread: 0, sumSpread: 0, count: 0, parties: [] };
+  /** 배정된 캐릭터 집합(비트) → 그 집합으로 만들 수 있는 가장 좋은 파티 구성 */
+  const bestByMask = new Map<number, Best>([[0, empty]]);
 
   const evaluate = (partyCount: number) => {
     const parties: Character[][] = Array.from({ length: partyCount }, () => []);
@@ -35,8 +41,10 @@ export function bruteForce(target: Target, characters: Character[]) {
       maxSpread = Math.max(maxSpread, spread);
       sumSpread += spread;
     }
+    const mask = label.reduce((m, l, i) => (l >= 0 ? m | (1 << i) : m), 0);
     const cand = { sizeCounts, maxSpread, sumSpread, count: partyCount, parties: parties.map((p) => p.map((c) => c.id).sort()) };
-    if (isBetter(cand, best)) best = cand;
+    const cur = bestByMask.get(mask);
+    if (!cur || isBetter(cand, cur)) bestByMask.set(mask, cand);
   };
 
   const rec = (i: number, partyCount: number) => {
@@ -50,5 +58,23 @@ export function bruteForce(target: Target, characters: Character[]) {
     }
   };
   rec(0, 0);
+
+  const order = eligible.map((_, i) => i).sort((a, b) => rankCompare(eligible[a], eligible[b], bossIds));
+  const feasible = [...bestByMask.keys()];
+  let best = empty;
+  let top = 0;
+  for (let k = 0; k < n; k++) {
+    top |= 1 << order[k];
+    // 상위 k+1명 안에서: 순위대로, 지금까지 정한 것 + 이 캐릭터를 넣은 구성이 하나라도 있으면 넣는다
+    let decided = 0;
+    let taken = 0;
+    for (let j = 0; j <= k; j++) {
+      const bit = 1 << order[j];
+      decided |= bit;
+      if (feasible.some((m) => (m & ~top) === 0 && (m & decided) === (taken | bit))) taken |= bit;
+    }
+    const cand = bestByMask.get(taken)!;
+    if (isBetter(cand, best)) best = cand;
+  }
   return best;
 }

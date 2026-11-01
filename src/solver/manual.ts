@@ -1,6 +1,6 @@
 import { Character } from '../types';
 import { bossKind } from '../bossFamily';
-import { EPS, hasRate, TargetResult } from './solve';
+import { averageRate, EPS, hasRate, TargetResult } from './solve';
 
 /** 손으로 고친 파티의 현재 상태 */
 export interface EvaluatedParty {
@@ -51,12 +51,28 @@ export function evaluateParty(r: TargetResult, memberIds: string[], chars: Map<s
   return { memberIds, rateSums, slack: ms.length ? slack : 0, tightest, spread, cooldownMin, cooldownMax, warnings };
 }
 
-/** 파티 사이로 캐릭터를 옮긴다. to = -1이면 미배정, to = parties.length면 새 파티. 빈 파티는 지운다 */
+/** 파티 사이로 캐릭터를 옮긴다. to = -1이면 미배정, to = parties.length면 새 파티. 빈 파티도 남긴다(직접 지운다) */
 export function moveMember(parties: string[][], charId: string, to: number): string[][] {
   const next = parties.map((p) => p.filter((id) => id !== charId));
   if (to >= 0 && to < parties.length) next[to].push(charId);
   else if (to === parties.length) next.push([charId]);
-  return next.filter((p) => p.length > 0);
+  return next;
+}
+
+/**
+ * 배율 순위 위반: 넣을 수 있는데 파티에 없는 캐릭터(candidates) 중, 파티에 있는 캐릭터보다 배율 평균이 높은 캐릭터.
+ * 높은 순으로, 그보다 낮은 파티 구성원 id와 함께
+ */
+export function rankViolations(r: TargetResult, parties: string[][], candidates: string[], chars: Map<string, Character>) {
+  const avg = (id: string) => {
+    const c = chars.get(id);
+    return c ? averageRate(c, r.bossIds) : 0;
+  };
+  const members = parties.flat();
+  return candidates
+    .map((id) => ({ id, avg: avg(id), lower: members.filter((m) => avg(m) < avg(id) - EPS) }))
+    .filter((v) => v.lower.length > 0)
+    .sort((a, b) => b.avg - a.avg);
 }
 
 /**
