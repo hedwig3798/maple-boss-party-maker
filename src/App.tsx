@@ -17,7 +17,7 @@ export default function App() {
   const [data, setData] = useState<AppData>(loadData);
   const [tab, setTab] = useState<Tab>('players');
   const [timeLimitSec, setTimeLimitSec] = useState(3);
-  const [run, setRun] = useState<RunState>({ running: false, done: 0, total: 0, results: [], snapshot: null });
+  const [run, setRun] = useState<RunState>({ running: false, done: 0, total: 0, results: [], snapshot: null, edits: {} });
   const workerRef = useRef<Worker | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -29,15 +29,16 @@ export default function App() {
     const hasData = data.players.length + data.characters.length + data.bosses.length > 0;
     if (hasData && !confirm(`현재 입력을 ${what}(으)로 덮어쓸까요?`)) return;
     setData(next);
-    setRun({ running: false, done: 0, total: 0, results: [], snapshot: null });
+    setRun({ running: false, done: 0, total: 0, results: [], snapshot: null, edits: {} });
   };
 
   const startRun = () => {
+    if (Object.keys(run.edits).length > 0 && !confirm('손으로 고친 파티가 있습니다. 다시 계산하면 사라집니다. 계속할까요?')) return;
     workerRef.current?.terminate();
     const worker = new Worker(new URL('./solver/worker.ts', import.meta.url), { type: 'module' });
     workerRef.current = worker;
     const snapshot = data;
-    setRun({ running: true, done: 0, total: 0, results: [], snapshot });
+    setRun({ running: true, done: 0, total: 0, results: [], snapshot, edits: {} });
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const msg = e.data;
       if (msg.type === 'progress') {
@@ -115,6 +116,14 @@ export default function App() {
             setWeakRatio={(weakRatio) => update((d) => ({ ...d, weakRatio }))}
             onRun={startRun}
             onCancel={cancelRun}
+            setEdit={(key, parties) =>
+              setRun((r) => {
+                const edits = { ...r.edits };
+                if (parties) edits[key] = parties;
+                else delete edits[key];
+                return { ...r, edits };
+              })
+            }
           />
         )}
       </main>

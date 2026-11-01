@@ -125,3 +125,18 @@ th.fam-head { text-align: center; color: var(--text); }
 
 textarea.paste-box { font: inherit; color: var(--text); background: var(--input); border: 1px dashed var(--line); border-radius: 6px; padding: 10px; height: 64px; resize: none; }
 textarea.paste-box:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.member.grab { cursor: grab; user-select: none; }
+.member.dragging { opacity: 0.4; }
+.member.bad { outline: 1px solid var(--danger); }
+.members.inline { display: inline-flex; vertical-align: middle; }
+.drop-target { outline: 1px dashed var(--line); outline-offset: -1px; }
+.drop-target.over, tr.drop-target.over td { background: var(--warn-bg); }
+td.new-party { text-align: center; padding: 10px; }
+.party-warn { margin: 4px 0 0; padding-left: 0; list-style: none; color: var(--danger); font-size: 12px; }
+
+h3 { font-size: 15px; margin: 0; }
+.summary { display: flex; flex-direction: column; gap: 6px; }
+table.summary-table { width: auto; border: 1px solid var(--line); }
+table.summary-table th, table.summary-table td { border: 1px solid var(--line); text-align: center; min-width: 110px; padding: 6px 12px; }
+table.summary-table th { color: var(--accent); font-size: 13px; background: var(--chip); }
