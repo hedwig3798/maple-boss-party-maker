@@ -3,6 +3,7 @@ import { AppData, Character } from '../types';
 import { newId } from '../storage';
 import { NumberInput } from './NumberInput';
 import { PasteImport } from './PasteImport';
+import { SheetImport } from './SheetImport';
 import { bossKind, groupByFamily } from '../bossFamily';
 
 type Update = (fn: (d: AppData) => AppData) => void;
@@ -11,6 +12,8 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
   const [newName, setNewName] = useState('');
   /** 붙여넣기 칸을 연 플레이어 */
   const [pastingId, setPastingId] = useState<string | null>(null);
+  /** 엑셀 표 붙여넣기 칸 열림 */
+  const [sheetOpen, setSheetOpen] = useState(false);
   const families = groupByFamily(data.bosses.filter((b) => b.enabled));
   const bosses = families.flatMap((f) => f.bosses);
   /** 보스 묶음의 첫 칸(왼쪽 구분선) */
@@ -62,8 +65,10 @@ export function PlayersPanel({ data, update }: { data: AppData; update: Update }
           <button className="primary" onClick={addPlayer} disabled={!newName.trim()}>
             플레이어 추가
           </button>
+          <button onClick={() => setSheetOpen(!sheetOpen)}>엑셀 표 붙여넣기</button>
         </div>
-        {data.players.length === 0 && <p className="muted">플레이어를 먼저 추가하세요.</p>}
+        {sheetOpen && <SheetImport data={data} update={update} onClose={() => setSheetOpen(false)} />}
+        {data.players.length === 0 && <p className="muted">플레이어를 먼저 추가하세요. 엑셀 표를 붙여넣으면 플레이어도 함께 만들어집니다.</p>}
       </section>
 
       {data.players.map((p) => {

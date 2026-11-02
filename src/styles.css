@@ -124,6 +124,7 @@ th.fam-head { text-align: center; color: var(--text); }
 }
 
 textarea.paste-box { font: inherit; color: var(--text); background: var(--input); border: 1px dashed var(--line); border-radius: 6px; padding: 10px; height: 64px; resize: none; }
+td.skipped-cell { background: var(--warn-bg); color: var(--warn); }
 textarea.paste-box:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 .member.grab { cursor: grab; user-select: none; }
